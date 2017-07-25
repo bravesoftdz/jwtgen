@@ -1,0 +1,77 @@
+#! /bin/env php
+<?php
+
+/* Parse options */
+function get_option($short, $long, $default = NULL)
+{
+  global $opts;
+  if (key_exists($short, $opts))
+    return $opts[$short];
+  elseif (key_exists($long, $opts))
+    return $opts[$long];
+
+  return $default;
+}
+
+$opts = getopt('e:hi:k:s:t:', array('api-key:', 'api-secret:', 'expire-time:', 'help', 'issue-id:', 'issue-time:'));
+
+if (get_option('h', 'help') === FALSE || empty($opts))
+{
+  echo $argv[0] . " [options]\n";
+  echo "-e --expire-time  Expiration timestamp\n";
+  echo "-h --help         This help\n";
+  echo "-i --issue-id     Issue ID\n";
+  echo "-k --api-key      API key\n";
+  echo "-s --api-secret   API secret\n";
+  echo "-t --issue-time   Issue time\n";
+  exit;
+}
+
+/* Use the options or use default values */
+$rnd = rand();
+$time = time();
+
+$api_key = get_option('k', 'api-key', '');
+$api_secret = get_option('s', 'api-secret', '');
+$expire_time = get_option('e', 'expire-time', $time + 60 * 5);
+$issue_id = get_option('i', 'issue-id', $rnd . '.' . $rnd * $time);
+$issue_time = get_option('t', 'issue-time', $time);
+
+/* Generate the JWT token */
+spl_autoload_register(function($name) { @include str_replace('\\', '/', $name) . '.php'; });
+
+use Lcobucci\JWT\Builder;
+use Lcobucci\JWT\Configuration;
+use Lcobucci\JWT\Signer\Hmac\Sha256;
+
+// Get the token
+if (class_exists('Configuration'))
+{
+  $config = new Configuration();
+  $config->setSigner(new Sha256());
+
+  $token = $config->createBuilder()
+  ->issuedBy($api_key)
+  ->identifiedBy($issue_id)
+  ->issuedAt($issue_time)
+  ->expiresAt($expires_time)
+  ->sign($config->getSigner(), $api_secret)
+  ->getToken();
+}
+else
+{
+  $token = (new Builder())
+    ->setIssuer($api_key)
+    ->setId($issue_id)
+    ->setIssuedAt($issue_time)
+    ->setExpiration($expire_time)
+    ->sign(new Sha256(), $api_secret)
+    ->getToken();
+}
+
+$token->getHeaders();
+$token->getClaims();
+
+echo "$token";
+
+?> 
